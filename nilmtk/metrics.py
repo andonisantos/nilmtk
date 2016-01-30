@@ -249,6 +249,129 @@ def f1_score(predictions, ground_truth):
     return pd.Series(f1_scores)
 
 
+def precision_score(predictions, ground_truth):
+    '''Compute precision scores.
+
+    .. math::
+        Pr_{score}^{(n)} = \\frac
+            {True_Positives}
+            {True_Positives + False_Positives}
+
+    Parameters
+    ----------
+    predictions, ground_truth : nilmtk.MeterGroup
+
+    Returns
+    -------
+    precision_scores : pd.Series
+        Each index is an meter instance int (or tuple for MeterGroups).
+        Each value is the precision score for that appliance.  If there are multiple
+        chunks then the value is the weighted mean of the precision score for
+        each chunk.
+    '''
+    # If we import sklearn at top of file then sphinx breaks.
+    from sklearn.metrics import precision_score as sklearn_p_score
+
+    # sklearn produces lots of DepreciationWarnings with PyTables
+    import warnings
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+    precision_scores = {}
+    both_sets_of_meters = iterate_through_submeters_of_two_metergroups(
+        predictions, ground_truth)
+    for pred_meter, ground_truth_meter in both_sets_of_meters:
+        scores_for_meter = pd.DataFrame(columns=['score', 'num_samples'])
+        aligned_meters = align_two_meters(
+            pred_meter, ground_truth_meter, 'when_on')
+        for aligned_states_chunk in aligned_meters:
+            aligned_states_chunk.dropna(inplace=True)
+            aligned_states_chunk = aligned_states_chunk.astype(int)
+            score = sklearn_p_score(aligned_states_chunk.icol(0),
+                                     aligned_states_chunk.icol(1))
+            scores_for_meter = scores_for_meter.append(
+                {'score': score, 'num_samples': len(aligned_states_chunk)},
+                ignore_index=True)
+
+        # Calculate weighted mean
+        num_samples = scores_for_meter['num_samples'].sum()
+        if num_samples > 0:
+            scores_for_meter['proportion'] = (
+                scores_for_meter['num_samples'] / num_samples)
+            avg_score = (
+                scores_for_meter['score'] * scores_for_meter['proportion']
+            ).sum()
+        else:
+            warn("No aligned samples when calculating F1-score for prediction"
+                 " meter {} and ground truth meter {}."
+                 .format(pred_meter, ground_truth_meter))
+            avg_score = np.NaN
+        precision_scores[pred_meter.instance()] = avg_score
+
+    return pd.Series(precision_scores)
+
+def recall_score(predictions, ground_truth):
+    '''Compute recall scores.
+
+    .. math::
+        Rc_{score}^{(n)} = \\frac
+            {True_Positives}
+            {True_Positives + False_Negatives}
+
+    Parameters
+    ----------
+    predictions, ground_truth : nilmtk.MeterGroup
+
+    Returns
+    -------
+    recall_scores : pd.Series
+        Each index is an meter instance int (or tuple for MeterGroups).
+        Each value is the recall score for that appliance.  If there are multiple
+        chunks then the value is the weighted mean of the recall score for
+        each chunk.
+    '''
+    # If we import sklearn at top of file then sphinx breaks.
+    from sklearn.metrics import recall_score as sklearn_r_score
+
+    # sklearn produces lots of DepreciationWarnings with PyTables
+    import warnings
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+    recall_scores = {}
+    both_sets_of_meters = iterate_through_submeters_of_two_metergroups(
+        predictions, ground_truth)
+    for pred_meter, ground_truth_meter in both_sets_of_meters:
+        scores_for_meter = pd.DataFrame(columns=['score', 'num_samples'])
+        aligned_meters = align_two_meters(
+            pred_meter, ground_truth_meter, 'when_on')
+        for aligned_states_chunk in aligned_meters:
+            aligned_states_chunk.dropna(inplace=True)
+            aligned_states_chunk = aligned_states_chunk.astype(int)
+            score = sklearn_r_score(aligned_states_chunk.icol(0),
+                                     aligned_states_chunk.icol(1))
+            scores_for_meter = scores_for_meter.append(
+                {'score': score, 'num_samples': len(aligned_states_chunk)},
+                ignore_index=True)
+
+        # Calculate weighted mean
+        num_samples = scores_for_meter['num_samples'].sum()
+        if num_samples > 0:
+            scores_for_meter['proportion'] = (
+                scores_for_meter['num_samples'] / num_samples)
+            avg_score = (
+                scores_for_meter['score'] * scores_for_meter['proportion']
+            ).sum()
+        else:
+            warn("No aligned samples when calculating F1-score for prediction"
+                 " meter {} and ground truth meter {}."
+                 .format(pred_meter, ground_truth_meter))
+            avg_score = np.NaN
+        recall_scores[pred_meter.instance()] = avg_score
+
+    return pd.Series(recall_scores)
+
+
+
+
 ##### FUNCTIONS BELOW THIS LINE HAVE NOT YET BEEN CONVERTED TO NILMTK v0.2 #####
 
 
